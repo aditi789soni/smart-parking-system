@@ -1,0 +1,81 @@
+// Prisma Schema for Smart Parking Slot Reservation System
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id           String        @id @default(uuid())
+  name         String
+  email        String        @unique
+  password     String
+  role         String        @default("REGULAR_USER") // "REGULAR_USER", "ADMIN", "ATTENDANT"
+  reservations Reservation[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+model ParkingZone {
+  id        String        @id @default(uuid())
+  zoneName  String
+  location  String
+  floor     Int
+  slots     ParkingSlot[]
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+}
+
+model ParkingSlot {
+  id           String        @id @default(uuid())
+  slotNumber   String
+  zoneId       String
+  type         String        // "REGULAR", "EV", "ACCESSIBLE"
+  status       String        @default("AVAILABLE") // "AVAILABLE", "RESERVED", "OCCUPIED", "MAINTENANCE"
+  hourlyRate   Float
+  zone         ParkingZone   @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+  reservations Reservation[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@index([status, type])
+  @@index([zoneId, status])
+}
+
+model Reservation {
+  id            String       @id @default(uuid())
+  bookingRef    String       @unique // e.g. "PK-9823"
+  userId        String
+  slotId        String
+  startTime     DateTime
+  endTime       DateTime
+  totalCost     Float
+  status        String       @default("CONFIRMED") // "CONFIRMED", "ACTIVE", "COMPLETED", "CANCELLED", "EXPIRED"
+  qrToken       String       @unique
+  graceDeadline DateTime     // startTime + 15 minutes
+  checkInTime   DateTime?
+  checkOutTime  DateTime?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  slot          ParkingSlot  @relation(fields: [slotId], references: [id], onDelete: Cascade)
+  payment       Payment?
+
+  @@index([qrToken])
+  @@index([status, graceDeadline])
+}
+
+model Payment {
+  id            String      @id @default(uuid())
+  reservationId String      @unique
+  amount        Float
+  status        String      @default("SUCCESS")
+  method        String      // "CARD", "UPI", "WALLET"
+  createdAt     DateTime    @default(now())
+
+  reservation   Reservation @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+}
